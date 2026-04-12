@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PokerBot Advisor</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Load FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🃏 PokerBot Advisor</h1>
+            <button id="clear-btn" class="btn btn-secondary">
+                <i class="fas fa-trash-alt"></i> Clear All
+            </button>
+        </header>
+
+        {% if not has_api_key %}
+        <div class="api-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Warning:</strong> OPENROUTER_API_KEY is not set. Metrics will compute, but LLM decisions will return an error.
+        </div>
+        {% endif %}
+
+        <div class="main-layout">
+            <!-- LEFT COLUMN: Card Picker -->
+            <div class="col-left">
+                <section class="card-picker-section">
+                    <div class="section-header">
+                        <h2>Select Cards</h2>
+                        <div class="mode-toggles">
+                            <label class="mode-toggle active" id="mode-hole">
+                                <input type="radio" name="pick-mode" value="hole" checked>
+                                Hole Cards (<span id="count-hole">0</span>/2)
+                            </label>
+                            <label class="mode-toggle" id="mode-board">
+                                <input type="radio" name="pick-mode" value="board">
+                                Board (<span id="count-board">0</span>/5)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="card-grid" id="card-grid">
+                        <!-- Populated by JS -->
+                    </div>
+
+                    <div class="selected-cards-display">
+                        <div class="display-row">
+                            <span class="row-label">Hole:</span>
+                            <div class="card-slots" id="slots-hole">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                        <div class="display-row">
+                            <span class="row-label">Board:</span>
+                            <div class="card-slots" id="slots-board">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- RIGHT COLUMN: Form & Results -->
+            <div class="col-right">
+                <section class="form-section">
+                    <h2>Game State</h2>
+                    <form id="game-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="street">Street</label>
+                                <input type="text" id="street" readonly value="preflop" class="readonly-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="position">Position</label>
+                                <select id="position">
+                                    <option value="BTN" selected>BTN</option>
+                                    <option value="SB">SB</option>
+                                    <option value="BB">BB</option>
+                                    <option value="UTG">UTG</option>
+                                    <option value="UTG1">UTG+1</option>
+                                    <option value="UTG2">UTG+2</option>
+                                    <option value="MP">MP</option>
+                                    <option value="MP1">MP1</option>
+                                    <option value="MP2">MP2</option>
+                                    <option value="HJ">HJ</option>
+                                    <option value="CO">CO</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="pot">Pot Size</label>
+                                <input type="number" id="pot" min="1" value="100" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="bet_to_call">Bet to Call</label>
+                                <input type="number" id="bet_to_call" min="0" value="0" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="my_stack">My Stack</label>
+                                <input type="number" id="my_stack" min="1" value="500" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="opp_stack">Opponent Stack</label>
+                                <input type="number" id="opp_stack" min="1" value="500" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="villain_range">Villain Range</label>
+                            <input type="text" id="villain_range" value="TT+, AQ+" placeholder="e.g. TT+, AKs, AQo" required>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-block" id="analyze-btn">
+                            <i class="fas fa-search"></i> Analyze Hand
+                        </button>
+                    </form>
+                </section>
+
+                <section class="results-section hidden" id="results-section">
+                    <div class="spinner-overlay hidden" id="spinner">
+                        <i class="fas fa-circle-notch fa-spin fa-3x"></i>
+                        <p>Computing Equity & Consulting LLM...</p>
+                    </div>
+
+                    <div id="error-message" class="error-message hidden"></div>
+
+                    <div id="results-content" class="hidden">
+                        <h3>Computed Metrics</h3>
+                        <div class="metrics-grid">
+                            <div class="metric-box">
+                                <div class="metric-label">Pot Odds</div>
+                                <div class="metric-value" id="val-pot-odds">-</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-label">SPR</div>
+                                <div class="metric-value" id="val-spr">-</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-label">MDF</div>
+                                <div class="metric-value" id="val-mdf">-</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-label">Outs</div>
+                                <div class="metric-value" id="val-outs">-</div>
+                            </div>
+                            <div class="metric-box highlight">
+                                <div class="metric-label">Equity vs Range</div>
+                                <div class="metric-value" id="val-equity">-</div>
+                            </div>
+                            <div class="metric-box highlight">
+                                <div class="metric-label">EV of Call</div>
+                                <div class="metric-value" id="val-ev">-</div>
+                            </div>
+                        </div>
+
+                        <h3>LLM Decision</h3>
+                        <div class="decision-card">
+                            <div class="decision-header" id="decision-header">
+                                <span class="action-badge" id="val-action">FOLD</span>
+                                <div class="decision-meta">
+                                    <span>Size: <strong id="val-size">N/A</strong></span>
+                                    <span>Confidence: <strong id="val-conf">HIGH</strong></span>
+                                </div>
+                            </div>
+                            <div class="decision-body">
+                                <strong>Reasoning:</strong>
+                                <p id="val-reasoning">Loading...</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,11 +1,16 @@
-# 🃏 PokerBot Advisor
+# 🃏 PokerBot Full-Hand Advisor
 
-An advanced, agentic Texas Hold'em poker assistant. PokerBot takes in your current game state (hole cards, board, stack sizes, and your opponent's perceived range) and computes all complex poker mathematics instantly. It then feeds these precise metrics into an AI model (via OpenRouter) to give you a definitive **FOLD, CALL, or RAISE** decision with step-by-step strategic reasoning.
+An advanced, agentic Texas Hold'em poker assistant that lets you build and analyze complete hand timelines from preflop through river. PokerBot takes your full hand scenario (hole cards, position, stack sizes, action history, board by street) and computes all complex poker mathematics instantly. It then feeds these precise metrics into an AI model (via OpenRouter) to give you a definitive **FOLD, CALL, or RAISE** decision with step-by-step strategic reasoning.
 
 ## ✨ Features
 
 * **Interactive Web UI:** A sleek, dark-themed single-page application with a visual 52-card picker.
-* **Monte Carlo Equity Calculator:** Uses the lightning-fast `treys` library to run thousands of simulations and determine your exact win probability against a specific villain range.
+* **Complete Hand Timeline Builder:** Build entire hands from preflop → flop → turn → river with full action history. Analyze at any decision point.
+* **Street-by-Street Board Selection:** Select flop (3 cards), turn (1 card), and river (1 card) separately as the hand develops.
+* **Heads-Up Position Support:** Choose BTN/SB or BB as your position; blinds are posted automatically.
+* **Villain Profile System:** Select opponent types (Nit, Tight Passive, Loose Aggressive, Maniac, etc.) to get tailored range estimates.
+* **Action Timeline:** Add fold, check, call, bet, and raise actions for each player at each street. The system validates all actions are legal.
+* **Monte Carlo Equity Calculator:** Uses the lightning-fast `treys` library to run thousands of simulations and determine your exact win probability against the estimated villain range.
 * **Advanced Math Engine:** Automatically calculates:
   * **Pot Odds** (%)
   * **SPR** (Stack-to-Pot Ratio)
@@ -40,7 +45,7 @@ An advanced, agentic Texas Hold'em poker assistant. PokerBot takes in your curre
 Start the Flask web server:
 
 ```bash
-flask --app pokerbot.app run --debug --port 5000`
+flask --app pokerbot.app run --debug --port 5000
 ```
 *(Or simply run `python -m pokerbot.app` if you configured the execution block).*
 
@@ -48,17 +53,30 @@ Then, open your web browser and navigate to:
 **http://localhost:5000**
 
 ### How to use the UI:
-1. **Select Cards:** Click to select exactly 2 Hole Cards. Toggle the mode to "Board" and select 0, 3, 4, or 5 community cards.
-2. **Fill Game State:** Enter the Pot Size, Bet to Call, and Stack Sizes.
-3. **Villain Range:** Enter your opponent's perceived range using standard poker notation.
-   * *Examples:* `QQ+` (Queens or better), `AKs` (Suited Ace-King), `88-55` (Pocket eights down to fives), `AT+` (Any Ace-Ten or better).
-4. **Analyze:** Click "Analyze Hand" to run the Monte Carlo simulation and consult the LLM.
+
+#### Step 1: Setup
+1. **Select Hero Cards:** Click to select exactly 2 Hole Cards using the card picker.
+2. **Choose Position:** Select BTN/SB (Button/Small Blind) or BB (Big Blind).
+3. **Choose Villain Profile:** Select your opponent's tendency (Unknown, Nit, Tight Passive, Loose Aggressive, Maniac, etc.).
+4. **Set Stack Sizes:** Enter your stack and villain's stack in big blinds.
+5. **Preview:** Click "Preview Starting State" to see the auto-posted blinds and initial game state.
+
+#### Step 2: Build the Hand Timeline
+1. **Preflop Actions:** Use the action buttons (Fold, Check, Call, Bet, Raise) to build the preflop action. The timeline updates automatically.
+2. **Add Board Cards:** Once preflop is complete, select flop, turn, and river cards using the board card picker.
+3. **Postflop Actions:** Continue adding actions at each street (flop, turn, river) using the action builder.
+4. **View Timeline:** The action timeline shows the complete hand history.
+
+#### Step 3: Analyze
+1. **Reach a Decision Point:** Build the hand until it's your turn to act (Hero is to act).
+2. **Analyze:** Click "Analyze Full Hand" to run the Monte Carlo simulation and consult the LLM.
+3. **Review Results:** See the range analysis, poker math (equity, pot odds, SPR, MDF, outs, EV), and get your final FOLD/CALL/RAISE decision with reasoning.
 
 ---
 
 ## 🧪 Running the Tests
 
-The project includes a massive test suite (120+ tests) verifying the math engine, range parsing, and web routing.
+The project includes a comprehensive test suite verifying the math engine, range parsing, hand state derivation, and web routing.
 
 To run the offline unit tests (runs instantly, no API key required):
 ```bash
@@ -77,19 +95,22 @@ python -m pytest tests/test_integration.py -v
 ```text
 pokerbot/
 ├── pokerbot/
-│   ├── app.py              # Flask Web Server & API route
+│   ├── app.py              # Flask Web Server & API routes (analyze, full_hand preview/analyze)
 │   ├── advisor.py          # OpenRouter LLM prompting & parsing
 │   ├── equity.py           # Monte Carlo simulation (treys)
 │   ├── math_engine.py      # Outs, Pot Odds, SPR, MDF, EV math
+│   ├── hand_state.py       # Full-hand timeline state derivation & validation
 │   ├── range_parser.py     # Converts "AKs, TT+" into card combos
+│   ├── range_advisor.py    # Villain range estimation based on profile
+│   ├── preflop_ranges.py   # Baseline preflop ranges for full-hand analysis
 │   ├── input_parser.py     # Formats and validates web inputs
-│   └── constants.py        # Card and street definitions
+│   └── constants.py        # Card, position, and street definitions
 ├── static/
 │   ├── css/style.css       # UI Styling
-│   └── js/app.js           # Frontend logic & card picker
+│   └── js/app.js           # Frontend logic, card picker, action builder
 ├── templates/
 │   └── index.html          # Main application layout
-├── tests/                  # Pytest suite
+├── tests/                  # Pytest suite (120+ tests)
 ├── requirements.txt        # Python dependencies
 └── plan.md                 # Original architecture spec
 ```

@@ -1,38 +1,36 @@
-// PokerBot Frontend Logic
+// PokerBot Full-Hand Phase 1 Frontend Logic
 
 const state = {
-    mode: 'hole', // 'hole' | 'board'
+    mode: 'hole',
     holeCards: [],
-    boardCards: []
+    boardCards: [],
+    actions: [],
+    lastHandState: null
 };
 
-// Poker rules
 const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
 const SUITS = ['s', 'h', 'd', 'c'];
-const SUIT_SYMBOLS = { 's': '♠', 'h': '♥', 'd': '♦', 'c': '♣' };
+const SUIT_SYMBOLS = { s: '♠', h: '♥', d: '♦', c: '♣' };
 
-// DOM Elements
 const elGrid = document.getElementById('card-grid');
 const elHoleCount = document.getElementById('count-hole');
 const elBoardCount = document.getElementById('count-board');
 const elHoleSlots = document.getElementById('slots-hole');
 const elBoardSlots = document.getElementById('slots-board');
-const elStreet = document.getElementById('street');
 const form = document.getElementById('game-form');
 
-// Initialization
 function init() {
     renderGrid();
     setupModeToggles();
     setupForm();
     document.getElementById('clear-btn').addEventListener('click', clearAll);
+    setupActionBuilder();
+    document.getElementById('analyze-full-hand-btn').addEventListener('click', analyzeFullHand);
+    updateUI();
 }
-
-// ── Card Picker Logic ────────────────────────────────────────────────
 
 function renderGrid() {
     elGrid.innerHTML = '';
-    
     SUITS.forEach(suit => {
         RANKS.forEach(rank => {
             const cardStr = `${rank}${suit}`;
@@ -41,16 +39,11 @@ function renderGrid() {
             btn.dataset.card = cardStr;
             btn.dataset.suit = suit;
             btn.innerHTML = `${rank}<br>${SUIT_SYMBOLS[suit]}`;
-            
-            // State styling
+
             if (state.holeCards.includes(cardStr)) {
                 btn.classList.add('selected-hole');
             } else if (state.boardCards.includes(cardStr)) {
                 btn.classList.add('selected-board');
-            } else {
-                // If the card isn't picked, but we are in a mode that's full,
-                // we technically can't pick it for that mode. But we handle that on click.
-                // However, if it's in the *other* list, we disable it.
             }
 
             btn.addEventListener('click', () => handleCardClick(cardStr));
@@ -60,52 +53,34 @@ function renderGrid() {
 }
 
 function handleCardClick(cardStr) {
-    // 1. If already in hole -> remove
     if (state.holeCards.includes(cardStr)) {
         state.holeCards = state.holeCards.filter(c => c !== cardStr);
-        updateUI();
-        return;
-    }
-    // 2. If already in board -> remove
-    if (state.boardCards.includes(cardStr)) {
+    } else if (state.boardCards.includes(cardStr)) {
         state.boardCards = state.boardCards.filter(c => c !== cardStr);
-        updateUI();
-        return;
+    } else if (state.mode === 'board') {
+        if (state.boardCards.length < 5) state.boardCards.push(cardStr);
+    } else if (state.holeCards.length < 2) {
+        state.holeCards.push(cardStr);
     }
-
-    // 3. Add to current mode if space available
-    if (state.mode === 'hole') {
-        if (state.holeCards.length < 2) {
-            state.holeCards.push(cardStr);
-        }
-    } else {
-        if (state.boardCards.length < 5) {
-            state.boardCards.push(cardStr);
-        }
-    }
-    
     updateUI();
 }
 
 function updateUI() {
-    // Update Counts
     elHoleCount.textContent = state.holeCards.length;
-    elBoardCount.textContent = state.boardCards.length;
-
-    // Auto-set street
-    const bc = state.boardCards.length;
-    if (bc === 0) elStreet.value = 'preflop';
-    else if (bc === 3) elStreet.value = 'flop';
-    else if (bc === 4) elStreet.value = 'turn';
-    else if (bc === 5) elStreet.value = 'river';
-    else elStreet.value = 'Invalid (needs 0,3,4,5)';
-
-    // Re-render grid to update colors/disabled states
+    if (elBoardCount) elBoardCount.textContent = state.boardCards.length;
     renderGrid();
-
-    // Render Slots
     renderSlots(elHoleSlots, state.holeCards, 'hole');
-    renderSlots(elBoardSlots, state.boardCards, 'board');
+    if (elBoardSlots) renderSlots(elBoardSlots, state.boardCards, 'board');
+    updateBoardStreetDisplays();
+}
+
+function updateBoardStreetDisplays() {
+    const flop = state.boardCards.slice(0, 3).join(' ') || 'Select 3 board cards';
+    const turn = state.boardCards.slice(3, 4).join(' ') || 'Select 1 turn card';
+    const river = state.boardCards.slice(4, 5).join(' ') || 'Select 1 river card';
+    document.getElementById('flop-display').textContent = flop;
+    document.getElementById('turn-display').textContent = turn;
+    document.getElementById('river-display').textContent = river;
 }
 
 function renderSlots(container, cards, typeClass) {
@@ -114,7 +89,7 @@ function renderSlots(container, cards, typeClass) {
         container.innerHTML = '<span style="color:#64748b;font-size:14px;padding:4px">None</span>';
         return;
     }
-    
+
     cards.forEach(cardStr => {
         const rank = cardStr[0];
         const suit = cardStr[1];
@@ -122,7 +97,6 @@ function renderSlots(container, cards, typeClass) {
         el.className = `mini-card ${typeClass}`;
         el.dataset.suit = suit;
         el.innerHTML = `${rank}${SUIT_SYMBOLS[suit]}`;
-        // Click slot to deselect
         el.addEventListener('click', () => handleCardClick(cardStr));
         container.appendChild(el);
     });
@@ -141,120 +115,179 @@ function setupModeToggles() {
 function clearAll() {
     state.holeCards = [];
     state.boardCards = [];
-    state.mode = 'hole';
-    
-    // Reset toggle UI
-    document.getElementById('mode-hole').querySelector('input').checked = true;
-    document.querySelectorAll('.mode-toggle').forEach(l => l.classList.remove('active'));
-    document.getElementById('mode-hole').classList.add('active');
-    
-    // Reset form
+    state.actions = [];
+    state.lastHandState = null;
     form.reset();
-    
-    // Hide results
-    document.getElementById('results-section').classList.add('hidden');
-    
+    hideError();
+    clearPreview();
     updateUI();
 }
-
-// ── Form Submission & API ────────────────────────────────────────────
 
 function setupForm() {
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
-        // Client validation
-        if (state.holeCards.length !== 2) {
-            showError("Please select exactly 2 hole cards.");
-            return;
-        }
-        const bc = state.boardCards.length;
-        if (bc !== 0 && bc !== 3 && bc !== 4 && bc !== 5) {
-            showError("Board must have 0, 3, 4, or 5 cards.");
-            return;
-        }
-
-        const payload = {
-            hole_cards: state.holeCards,
-            board: state.boardCards,
-            pot: parseFloat(document.getElementById('pot').value),
-            bet_to_call: parseFloat(document.getElementById('bet_to_call').value),
-            my_stack: parseFloat(document.getElementById('my_stack').value),
-            opp_stack: parseFloat(document.getElementById('opp_stack').value),
-            position: document.getElementById('position').value,
-            villain_range: document.getElementById('villain_range').value
-        };
-
-        // Show loading
-        const resultsSec = document.getElementById('results-section');
-        const spinner = document.getElementById('spinner');
-        const content = document.getElementById('results-content');
-        const errorBox = document.getElementById('error-message');
-        
-        resultsSec.classList.remove('hidden');
-        spinner.classList.remove('hidden');
-        content.classList.add('hidden');
-        errorBox.classList.add('hidden');
-
-        try {
-            const response = await fetch('/api/analyze', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            
-            const data = await response.json();
-            
-            if (!data.success) {
-                showError(data.error);
-                return;
-            }
-
-            // Populate Metrics
-            document.getElementById('val-pot-odds').textContent = data.metrics.pot_odds_pct + '%';
-            document.getElementById('val-spr').textContent = data.metrics.spr === null ? '∞' : data.metrics.spr;
-            document.getElementById('val-mdf').textContent = data.metrics.mdf + '%';
-            document.getElementById('val-outs').textContent = data.metrics.outs === -1 ? 'N/A' : data.metrics.outs;
-            document.getElementById('val-equity').textContent = data.metrics.equity_pct + '%';
-            
-            const ev = data.metrics.ev_call;
-            const evEl = document.getElementById('val-ev');
-            evEl.textContent = (ev > 0 ? '+' : '') + ev;
-            evEl.style.color = ev > 0 ? 'var(--btn-success)' : (ev < 0 ? 'var(--btn-danger)' : 'inherit');
-
-            // Populate Decision
-            const actionEl = document.getElementById('val-action');
-            actionEl.textContent = data.decision.action;
-            
-            // Badge color
-            actionEl.style.background = 'var(--border)'; // default
-            if (data.decision.action === 'FOLD') actionEl.style.background = 'var(--btn-danger)';
-            if (data.decision.action === 'CALL') actionEl.style.background = 'var(--btn-warning)';
-            if (data.decision.action === 'RAISE') actionEl.style.background = 'var(--btn-success)';
-
-            document.getElementById('val-size').textContent = data.decision.raise_size;
-            document.getElementById('val-conf').textContent = data.decision.confidence;
-            document.getElementById('val-reasoning').textContent = data.decision.reasoning;
-
-            // Show results
-            spinner.classList.add('hidden');
-            content.classList.remove('hidden');
-
-        } catch (err) {
-            showError("Network error. Is the server running?");
-        }
+        await previewStartingState();
     });
 }
 
+function buildFullHandPayload() {
+    return {
+        setup: {
+            hero_position: document.getElementById('position').value,
+            hero_stack_bb: parseFloat(document.getElementById('hero_stack_bb').value),
+            villain_stack_bb: parseFloat(document.getElementById('villain_stack_bb').value),
+            villain_profile: document.getElementById('villain_profile').value,
+            hero_hole_cards: state.holeCards
+        },
+        board: {
+            flop: state.boardCards.slice(0, 3),
+            turn: state.boardCards.slice(3, 4),
+            river: state.boardCards.slice(4, 5)
+        },
+        actions: state.actions
+    };
+}
+
+async function previewStartingState() {
+    if (state.holeCards.length !== 2) {
+        showError('Please select exactly 2 hero hole cards.');
+        return;
+    }
+
+    const payload = buildFullHandPayload();
+
+    try {
+        const response = await fetch('/api/full_hand/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!data.success) {
+            showError(data.error);
+            return;
+        }
+        hideError();
+        renderPreview(data.hand_state);
+        renderTimeline();
+        updateActionButtons(data.hand_state);
+    } catch (err) {
+        showError('Network error. Is the server running?');
+    }
+}
+
+function setupActionBuilder() {
+    document.getElementById('action-fold').addEventListener('click', () => addAction('fold'));
+    document.getElementById('action-check').addEventListener('click', () => addAction('check'));
+    document.getElementById('action-call').addEventListener('click', () => addAction('call'));
+    document.getElementById('action-bet').addEventListener('click', () => addAction('bet'));
+    document.getElementById('action-raise').addEventListener('click', () => addAction('raise'));
+    updateActionButtons(null);
+}
+
+async function addAction(type) {
+    if (!state.lastHandState || !state.lastHandState.legal_actions.includes(type)) return;
+    const actor = state.lastHandState.current_actor;
+    const action = { actor, type };
+    if (state.lastHandState.street !== 'preflop') action.street = state.lastHandState.street;
+    if (type === 'raise') {
+        const raiseTo = parseFloat(document.getElementById('raise_to_bb').value);
+        const heroPosition = document.getElementById('position').value;
+        const contribution = state.lastHandState.street === 'preflop'
+            ? (actor === 'hero'
+                ? (heroPosition === 'BB' ? 1.0 : 0.5)
+                : (heroPosition === 'BB' ? 0.5 : 1.0))
+            : 0.0;
+        action.amount_added = raiseTo - contribution;
+        action.input_mode = 'raise_to';
+        action.input_amount = raiseTo;
+    }
+    if (type === 'bet') {
+        action.amount_added = parseFloat(document.getElementById('raise_to_bb').value);
+    }
+    if (document.getElementById('all_in_toggle').checked) action.all_in = true;
+    state.actions.push(action);
+    await previewStartingState();
+}
+
+async function analyzeFullHand() {
+    if (state.holeCards.length !== 2) {
+        showError('Please select exactly 2 hero hole cards.');
+        return;
+    }
+    try {
+        const response = await fetch('/api/analyze_full_hand', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(buildFullHandPayload())
+        });
+        const data = await response.json();
+        if (!data.success) {
+            showError(data.error);
+            return;
+        }
+        hideError();
+        document.getElementById('range-analysis-output').textContent = `${data.range_analysis.estimated_range} (${data.range_analysis.confidence})`;
+        document.getElementById('math-output').textContent = `Equity ${data.metrics.equity_pct}%, Pot odds ${data.metrics.pot_odds_pct}%, EV call ${data.metrics.ev_call}bb`;
+        document.getElementById('decision-output').textContent = `${data.decision.action}: ${data.decision.reasoning}`;
+    } catch (err) {
+        showError('Network error. Is the server running?');
+    }
+}
+
+function renderPreview(handState) {
+    state.lastHandState = handState;
+    document.getElementById('val-pot').textContent = `${handState.pot_bb}bb`;
+    document.getElementById('val-hero-stack').textContent = `${handState.hero_stack_bb}bb`;
+    document.getElementById('val-villain-stack').textContent = `${handState.villain_stack_bb}bb`;
+    document.getElementById('val-current-actor').textContent = handState.current_actor === 'hero' ? 'Hero' : 'Villain';
+    document.getElementById('val-street').textContent = handState.street;
+    document.getElementById('val-legal-actions').textContent = handState.legal_actions.join(', ');
+}
+
+function renderTimeline() {
+    const timeline = document.getElementById('action-timeline');
+    if (!state.actions.length) {
+        timeline.innerHTML = '<span style="color:#64748b;font-size:14px;padding:4px">No actions yet</span>';
+        return;
+    }
+    timeline.innerHTML = '<strong>Preflop</strong>' + state.actions.map(action => {
+        const actor = action.actor === 'hero' ? 'Hero' : 'Villain';
+        const street = action.street ? `${action.street}: ` : 'preflop: ';
+        if (action.type === 'raise') return `<div>${street}${actor} raises to ${action.input_amount}bb</div>`;
+        if (action.type === 'bet') return `<div>${street}${actor} bets ${action.amount_added}bb</div>`;
+        return `<div>${street}${actor} ${action.type}s</div>`;
+    }).join('');
+}
+
+function updateActionButtons(handState) {
+    ['fold', 'check', 'call', 'bet', 'raise'].forEach(type => {
+        const button = document.getElementById(`action-${type}`);
+        button.disabled = !handState || !handState.legal_actions.includes(type);
+    });
+    const status = document.getElementById('builder-status');
+    status.textContent = handState ? (handState.disabled_reason || `${handState.current_actor === 'hero' ? 'Hero' : 'Villain'} to act`) : 'Preview setup to begin building preflop actions.';
+}
+
+function clearPreview() {
+    ['val-pot', 'val-hero-stack', 'val-villain-stack', 'val-current-actor', 'val-legal-actions'].forEach(id => {
+        document.getElementById(id).textContent = '-';
+    });
+    document.getElementById('val-street').textContent = 'preflop';
+    renderTimeline();
+    updateActionButtons(null);
+}
+
 function showError(msg) {
-    document.getElementById('results-section').classList.remove('hidden');
-    document.getElementById('spinner').classList.add('hidden');
-    document.getElementById('results-content').classList.add('hidden');
-    
     const err = document.getElementById('error-message');
     err.textContent = msg;
     err.classList.remove('hidden');
 }
 
-// Start
+function hideError() {
+    const err = document.getElementById('error-message');
+    err.textContent = '';
+    err.classList.add('hidden');
+}
+
 init();

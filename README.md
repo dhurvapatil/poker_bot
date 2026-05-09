@@ -40,7 +40,7 @@ An advanced, agentic Texas Hold'em poker assistant. PokerBot takes in your curre
 Start the Flask web server:
 
 ```bash
-flask --app pokerbot.app run --debug --port 5000
+flask --app pokerbot.app run --debug --port 5000`
 ```
 *(Or simply run `python -m pokerbot.app` if you configured the execution block).*
 

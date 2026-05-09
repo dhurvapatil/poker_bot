@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PokerBot Advisor</title>
+    <title>PokerBot Full-Hand Advisor</title>
     <link rel="stylesheet" href="/static/css/style.css">
-    <!-- Load FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🃏 PokerBot Advisor</h1>
+            <h1>🃏 PokerBot Full-Hand Advisor</h1>
             <button id="clear-btn" class="btn btn-secondary">
                 <i class="fas fa-trash-alt"></i> Clear All
             </button>
@@ -20,16 +19,15 @@
         {% if not has_api_key %}
         <div class="api-warning">
             <i class="fas fa-exclamation-triangle"></i>
-            <strong>Warning:</strong> OPENROUTER_API_KEY is not set. Metrics will compute, but LLM decisions will return an error.
+            <strong>Warning:</strong> OPENROUTER_API_KEY is not set. Later LLM analysis phases will be unavailable.
         </div>
         {% endif %}
 
         <div class="main-layout">
-            <!-- LEFT COLUMN: Card Picker -->
             <div class="col-left">
                 <section class="card-picker-section">
                     <div class="section-header">
-                        <h2>Select Cards</h2>
+                        <h2>Select Hero Cards</h2>
                         <div class="mode-toggles">
                             <label class="mode-toggle active" id="mode-hole">
                                 <input type="radio" name="pick-mode" value="hole" checked>
@@ -42,139 +40,151 @@
                         </div>
                     </div>
 
-                    <div class="card-grid" id="card-grid">
-                        <!-- Populated by JS -->
-                    </div>
+                    <div class="card-grid" id="card-grid"></div>
 
                     <div class="selected-cards-display">
                         <div class="display-row">
-                            <span class="row-label">Hole:</span>
-                            <div class="card-slots" id="slots-hole">
-                                <!-- Populated by JS -->
-                            </div>
+                            <span class="row-label">Hero:</span>
+                            <div class="card-slots" id="slots-hole"></div>
                         </div>
                         <div class="display-row">
                             <span class="row-label">Board:</span>
-                            <div class="card-slots" id="slots-board">
-                                <!-- Populated by JS -->
-                            </div>
+                            <div class="card-slots" id="slots-board"></div>
                         </div>
                     </div>
                 </section>
             </div>
 
-            <!-- RIGHT COLUMN: Form & Results -->
             <div class="col-right">
                 <section class="form-section">
-                    <h2>Game State</h2>
+                    <h2>Full-Hand Setup</h2>
                     <form id="game-form">
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="street">Street</label>
-                                <input type="text" id="street" readonly value="preflop" class="readonly-input">
+                                <label for="position">Hero Position</label>
+                                <select id="position">
+                                    <option value="BTN" selected>BTN / SB</option>
+                                    <option value="BB">BB</option>
+                                </select>
                             </div>
                             <div class="form-group">
-                                <label for="position">Position</label>
-                                <select id="position">
-                                    <option value="BTN" selected>BTN</option>
-                                    <option value="SB">SB</option>
-                                    <option value="BB">BB</option>
-                                    <option value="UTG">UTG</option>
-                                    <option value="UTG1">UTG+1</option>
-                                    <option value="UTG2">UTG+2</option>
-                                    <option value="MP">MP</option>
-                                    <option value="MP1">MP1</option>
-                                    <option value="MP2">MP2</option>
-                                    <option value="HJ">HJ</option>
-                                    <option value="CO">CO</option>
+                                <label for="villain_profile">Villain Profile</label>
+                                <select id="villain_profile">
+                                    <option selected>Unknown</option>
+                                    <option>Nit</option>
+                                    <option>Tight Passive</option>
+                                    <option>Tight Aggressive</option>
+                                    <option>Loose Passive / Calling Station</option>
+                                    <option>Loose Aggressive</option>
+                                    <option>Maniac</option>
+                                    <option>Solid Reg</option>
+                                    <option>Weak Recreational</option>
                                 </select>
                             </div>
                         </div>
 
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="pot">Pot Size</label>
-                                <input type="number" id="pot" min="1" value="100" required>
+                                <label for="hero_stack_bb">Hero Stack (bb)</label>
+                                <input type="number" id="hero_stack_bb" min="0.5" step="0.5" value="100" required>
                             </div>
                             <div class="form-group">
-                                <label for="bet_to_call">Bet to Call</label>
-                                <input type="number" id="bet_to_call" min="0" value="0" required>
+                                <label for="villain_stack_bb">Villain Stack (bb)</label>
+                                <input type="number" id="villain_stack_bb" min="1" step="0.5" value="100" required>
                             </div>
                         </div>
 
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="my_stack">My Stack</label>
-                                <input type="number" id="my_stack" min="1" value="500" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="opp_stack">Opponent Stack</label>
-                                <input type="number" id="opp_stack" min="1" value="500" required>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="villain_range">Villain Range</label>
-                            <input type="text" id="villain_range" value="TT+, AQ+" placeholder="e.g. TT+, AKs, AQo" required>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary btn-block" id="analyze-btn">
-                            <i class="fas fa-search"></i> Analyze Hand
+                        <button type="submit" class="btn btn-primary btn-block" id="preview-btn">
+                            <i class="fas fa-sync-alt"></i> Preview Starting State
                         </button>
                     </form>
                 </section>
 
-                <section class="results-section hidden" id="results-section">
-                    <div class="spinner-overlay hidden" id="spinner">
-                        <i class="fas fa-circle-notch fa-spin fa-3x"></i>
-                        <p>Computing Equity & Consulting LLM...</p>
+                <section class="form-section">
+                    <h2>Complete Hand Builder</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Flop</label>
+                            <div id="flop-display">Select 3 board cards</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Turn</label>
+                            <div id="turn-display">Select 1 turn card</div>
+                        </div>
+                        <div class="form-group">
+                            <label>River</label>
+                            <div id="river-display">Select 1 river card</div>
+                        </div>
                     </div>
+                    <h2>Preflop Action Builder</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="raise_to_bb">Raise To (bb)</label>
+                            <input type="number" id="raise_to_bb" min="2" step="0.5" value="2.5">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <button type="button" class="btn btn-secondary" id="action-fold">Fold</button>
+                        <button type="button" class="btn btn-secondary" id="action-check">Check</button>
+                        <button type="button" class="btn btn-secondary" id="action-call">Call</button>
+                        <button type="button" class="btn btn-secondary" id="action-bet">Bet</button>
+                        <button type="button" class="btn btn-primary" id="action-raise">Raise</button>
+                    </div>
+                    <label class="mode-toggle">
+                        <input type="checkbox" id="all_in_toggle"> All-In
+                    </label>
+                    </div>
+                    <h3>Action Timeline</h3>
+                    <div id="action-timeline" class="selected-cards-display">
+                        <span style="color:#64748b;font-size:14px;padding:4px">No actions yet</span>
+                    </div>
+                    <p class="helper-text" id="builder-status">Preview setup to begin building preflop actions.</p>
+                    <button type="button" class="btn btn-primary btn-block" id="analyze-full-hand-btn">
+                        <i class="fas fa-search"></i> Analyze Full Hand
+                    </button>
+                </section>
 
+                <section class="results-section" id="analysis-section">
+                    <h3>Range Analysis</h3>
+                    <div id="range-analysis-output">Build to a Hero decision and analyze.</div>
+                    <h3>Math</h3>
+                    <div id="math-output">Equity and pot odds will appear here.</div>
+                    <h3>Final Decision</h3>
+                    <div id="decision-output">Decision will appear here.</div>
+                </section>
+
+                <section class="results-section" id="results-section">
                     <div id="error-message" class="error-message hidden"></div>
 
-                    <div id="results-content" class="hidden">
-                        <h3>Computed Metrics</h3>
+                    <div id="results-content">
+                        <h3>Auto-Blinds Preview</h3>
                         <div class="metrics-grid">
-                            <div class="metric-box">
-                                <div class="metric-label">Pot Odds</div>
-                                <div class="metric-value" id="val-pot-odds">-</div>
-                            </div>
-                            <div class="metric-box">
-                                <div class="metric-label">SPR</div>
-                                <div class="metric-value" id="val-spr">-</div>
-                            </div>
-                            <div class="metric-box">
-                                <div class="metric-label">MDF</div>
-                                <div class="metric-value" id="val-mdf">-</div>
-                            </div>
-                            <div class="metric-box">
-                                <div class="metric-label">Outs</div>
-                                <div class="metric-value" id="val-outs">-</div>
-                            </div>
                             <div class="metric-box highlight">
-                                <div class="metric-label">Equity vs Range</div>
-                                <div class="metric-value" id="val-equity">-</div>
+                                <div class="metric-label">Pot</div>
+                                <div class="metric-value" id="val-pot">-</div>
                             </div>
-                            <div class="metric-box highlight">
-                                <div class="metric-label">EV of Call</div>
-                                <div class="metric-value" id="val-ev">-</div>
+                            <div class="metric-box">
+                                <div class="metric-label">Hero Stack</div>
+                                <div class="metric-value" id="val-hero-stack">-</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-label">Villain Stack</div>
+                                <div class="metric-value" id="val-villain-stack">-</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-label">First Actor</div>
+                                <div class="metric-value" id="val-current-actor">-</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-label">Street</div>
+                                <div class="metric-value" id="val-street">preflop</div>
+                            </div>
+                            <div class="metric-box">
+                                <div class="metric-label">Legal Actions</div>
+                                <div class="metric-value" id="val-legal-actions">-</div>
                             </div>
                         </div>
-
-                        <h3>LLM Decision</h3>
-                        <div class="decision-card">
-                            <div class="decision-header" id="decision-header">
-                                <span class="action-badge" id="val-action">FOLD</span>
-                                <div class="decision-meta">
-                                    <span>Size: <strong id="val-size">N/A</strong></span>
-                                    <span>Confidence: <strong id="val-conf">HIGH</strong></span>
-                                </div>
-                            </div>
-                            <div class="decision-body">
-                                <strong>Reasoning:</strong>
-                                <p id="val-reasoning">Loading...</p>
-                            </div>
-                        </div>
+                        <p class="helper-text">Blinds are posted automatically: SB 0.5bb, BB 1bb.</p>
                     </div>
                 </section>
             </div>

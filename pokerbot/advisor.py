@@ -15,6 +15,9 @@ from pokerbot.math_engine import PokerMetrics
 # Ensure .env is loaded
 load_dotenv()
 
+# Override with the OPENROUTER_MODEL env var (any OpenRouter model id).
+DEFAULT_MODEL = "z-ai/glm-4.5-air:free"
+
 
 @dataclass
 class Decision:
@@ -157,7 +160,7 @@ def get_decision(user_prompt: str) -> Decision:
                 "Content-Type": "application/json",
             },
             json={
-                "model": "z-ai/glm-4.5-air:free",
+                "model": os.getenv("OPENROUTER_MODEL") or DEFAULT_MODEL,
                 "messages": [
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
